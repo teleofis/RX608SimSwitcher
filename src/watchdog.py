@@ -26,28 +26,46 @@ Copyright (c) 2013-2015, ОАО "ТЕЛЕОФИС"
 import sys
 import MOD, MDM
 
-DEBUG = 1
-
+DEBUG = 0
+TMP = 0
+ 
 if(DEBUG):
     import SER
-    
     SER.set_speed('9600')
-    
+     
     class SERstdout:
         def __init__(self):
-            print ""
+            global TMP
+            TMP = 1
         def write(self, s):
             SER.send('%d %s\r' % (MOD.secCounter(), s))
-            
+             
     sys.stdout = SERstdout()
     sys.stderr = SERstdout()
+else:
+    class TMPstdout:
+        def __init__(self):
+            global TMP
+            TMP = 2
+        def write(self, s):
+            global TMP
+            TMP = 3
+             
+    sys.stdout = TMPstdout()
+    sys.stderr = TMPstdout()
 
 print "Watchdog Script started"
 
+########################################################
+# Variables
+########################################################
 reboot_counter = 0
 reboot_counter_max = 2880
 
-def sendAT(request, response, timeout = 2):
+########################################################
+# Functions
+########################################################
+def sendAT(request, response = 'OK', timeout = 3):
     MDM.send(request + '\r', 2)
     result = -2
     data = ''
@@ -65,22 +83,25 @@ def sendAT(request, response, timeout = 2):
     return (result, data)
 
 def reboot():
-    sendAT('AT#ENHRST=1,0', 'OK')
+    sendAT('AT#ENHRST=1,0')
     sys.exit()
     
 def reset_watchdog():
-    sendAT('AT#ENHRST=1,10', 'OK')
+    sendAT('AT#ENHRST=1,10')
 
-if __name__ == "__main__":
-    try:
-        global reboot_counter
-        global reboot_counter_max
-        
-        while(1):
-            reset_watchdog()
-            MOD.sleep(300)
-            reboot_counter = reboot_counter + 1
-            if(reboot_counter > reboot_counter_max):
-                reboot()
-    except Exception, e:
-        reboot()
+########################################################
+# Main loop
+########################################################
+try:
+    global reboot_counter
+    global reboot_counter_max
+    
+    while(1):
+        print 'RebootCounter: %d Max: %d' % (reboot_counter, reboot_counter_max)
+        reset_watchdog()
+        MOD.sleep(300)
+        reboot_counter = reboot_counter + 1
+        if(reboot_counter > reboot_counter_max):
+            reboot()
+except Exception, e:
+    reboot()

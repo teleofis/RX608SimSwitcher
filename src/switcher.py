@@ -24,28 +24,37 @@ Copyright (c) 2013-2015, ОАО "ТЕЛЕОФИС"
 '''
 
 import sys
-import MOD
+import MOD, MDM, GPIO
 
-DEBUG = 1
-
+DEBUG = 0
+TMP = 0
+ 
 if(DEBUG):
     import SER
-    
     SER.set_speed('9600')
-    
+     
     class SERstdout:
         def __init__(self):
-            print ""
+            global TMP
+            TMP = 1
         def write(self, s):
             SER.send('%d %s\r' % (MOD.secCounter(), s))
-            
+             
     sys.stdout = SERstdout()
     sys.stderr = SERstdout()
-
+else:
+    class TMPstdout:
+        def __init__(self):
+            global TMP
+            TMP = 2
+        def write(self, s):
+            global TMP
+            TMP = 3
+             
+    sys.stdout = TMPstdout()
+    sys.stderr = TMPstdout()
+ 
 print "Switcher Script started"
-
-import MDM
-import GPIO
 
 ########################################################
 # Constants
@@ -61,7 +70,6 @@ ACTIVE_SIM = 1
 ########################################################
 # Functions
 ########################################################
-
 def sendAT(request, response = 'OK', timeout = 3):
     MDM.send(request + '\r', 2)
     result = -2
@@ -99,14 +107,14 @@ def checkCSQ():
             return val
     return -1
 
-def readCCID():
-    r, s = sendAT('AT#CCID')
-    if(r == 0):
-        pos = s.find('#CCID:')
-        if(pos != -1):
-            val = s[pos+7:pos+25]
-            return val
-    return "ERROR"
+# def readCCID():
+#     r, s = sendAT('AT#CCID')
+#     if(r == 0):
+#         pos = s.find('#CCID:')
+#         if(pos != -1):
+#             val = s[pos+7:pos+25]
+#             return val
+#     return "ERROR"
     
 def initGPIO():
     GPIO.setIOdir(5, 0, 1)
@@ -114,6 +122,7 @@ def initGPIO():
 def initAT():
     sendAT('ATE0')
     sendAT('ATS0=0')
+    sendAT('AT\\R0')
 
 def turnOnSim1():
     GPIO.setIOvalue(5, 0)
@@ -123,11 +132,15 @@ def turnOnSim2():
 
 def disableSIM():
     sendAT('AT#SIMDET=0')
-    MOD.sleep(20)
+    MOD.sleep(40)
 
 def enableSIM():
     sendAT('AT#SIMDET=1')
     MOD.sleep(20)
+    
+def resetWatchdog():
+    MOD.watchdogReset()
+    sendAT('AT#ENHRST=1,10')
 
 ########################################################
 # Main loop
@@ -151,26 +164,28 @@ try:
     turnOnSim1()
     enableSIM()
     
-    SIM_NOTFOUND = 1
+#     SIM_NOTFOUND = 1
     
     timer = MOD.secCounter() + NETWORK_WAIT_TIME
     
     while(1):
-        MOD.watchdogReset()
+        resetWatchdog()
         
         ring = MDM.getRI()
         if(ring == 1):
             print 'Incoming connection, sleep'
+            timer = MOD.secCounter() + NETWORK_WAIT_TIME
             MOD.sleep(MAIN_LOOP_PERIOD * 10)
             continue
         
-        ccid = readCCID()
-        if(ccid.find("ERROR") != -1):
-            SIM_NOTFOUND = 1
-        else:
-            SIM_NOTFOUND = 0
+#         ccid = readCCID()
+#         if(ccid.find("ERROR") != -1):
+#             SIM_NOTFOUND = 1
+#         else:
+#             SIM_NOTFOUND = 0
             
-        print 'Active SIM: %d Timer: %d CCID: %s' % (ACTIVE_SIM, timer - MOD.secCounter(), ccid)
+#         print 'Active SIM: %d Timer: %d CCID: %s' % (ACTIVE_SIM, timer - MOD.secCounter(), ccid)
+        print 'Active SIM: %d Timer: %d' % (ACTIVE_SIM, timer - MOD.secCounter())
         
         creg = checkCREG()
         if(creg == 0):
@@ -184,7 +199,8 @@ try:
         else:
             print "NOT REGISTERED"
             
-        if((MOD.secCounter() > timer) or (SIM_NOTFOUND == 1)):
+#         if((MOD.secCounter() > timer) or (SIM_NOTFOUND == 1)):
+        if(MOD.secCounter() > timer):
             print 'NETWORK_WAIT_TIME timeout'
             if(ACTIVE_SIM == 1):
                 print 'Switch to SIM2'
