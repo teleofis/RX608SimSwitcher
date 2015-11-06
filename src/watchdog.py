@@ -27,32 +27,17 @@ import sys
 import MOD, MDM
 
 DEBUG = 0
-TMP = 0
  
 if(DEBUG):
     import SER
-    SER.set_speed('9600')
-     
     class SERstdout:
         def __init__(self):
-            global TMP
-            TMP = 1
+            SER.set_speed('9600')
         def write(self, s):
             SER.send('%d %s\r' % (MOD.secCounter(), s))
              
     sys.stdout = SERstdout()
     sys.stderr = SERstdout()
-else:
-    class TMPstdout:
-        def __init__(self):
-            global TMP
-            TMP = 2
-        def write(self, s):
-            global TMP
-            TMP = 3
-             
-    sys.stdout = TMPstdout()
-    sys.stderr = TMPstdout()
 
 print "Watchdog Script started"
 

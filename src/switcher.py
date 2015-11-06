@@ -27,34 +27,17 @@ import sys
 import MOD, MDM, GPIO
 
 DEBUG = 0
-TMP = 0
  
 if(DEBUG):
     import SER
-    SER.set_speed('9600')
-     
     class SERstdout:
         def __init__(self):
-            global TMP
-            TMP = 1
+            SER.set_speed('9600')
         def write(self, s):
             SER.send('%d %s\r' % (MOD.secCounter(), s))
              
     sys.stdout = SERstdout()
     sys.stderr = SERstdout()
-else:
-    class TMPstdout:
-        def __init__(self):
-            global TMP
-            TMP = 2
-        def write(self, s):
-            global TMP
-            TMP = 3
-             
-    sys.stdout = TMPstdout()
-    sys.stderr = TMPstdout()
- 
-print "Switcher Script started"
 
 ########################################################
 # Constants
@@ -106,15 +89,6 @@ def checkCSQ():
             val = int(s[pos+6:].strip().split(',')[0])
             return val
     return -1
-
-# def readCCID():
-#     r, s = sendAT('AT#CCID')
-#     if(r == 0):
-#         pos = s.find('#CCID:')
-#         if(pos != -1):
-#             val = s[pos+7:pos+25]
-#             return val
-#     return "ERROR"
     
 def initGPIO():
     GPIO.setIOdir(5, 0, 1)
@@ -132,7 +106,7 @@ def turnOnSim2():
 
 def disableSIM():
     sendAT('AT#SIMDET=0')
-    MOD.sleep(40)
+    MOD.sleep(20)
 
 def enableSIM():
     sendAT('AT#SIMDET=1')
@@ -163,9 +137,7 @@ try:
     disableSIM()
     turnOnSim1()
     enableSIM()
-    
-#     SIM_NOTFOUND = 1
-    
+
     timer = MOD.secCounter() + NETWORK_WAIT_TIME
     
     while(1):
@@ -177,14 +149,7 @@ try:
             timer = MOD.secCounter() + NETWORK_WAIT_TIME
             MOD.sleep(MAIN_LOOP_PERIOD * 10)
             continue
-        
-#         ccid = readCCID()
-#         if(ccid.find("ERROR") != -1):
-#             SIM_NOTFOUND = 1
-#         else:
-#             SIM_NOTFOUND = 0
-            
-#         print 'Active SIM: %d Timer: %d CCID: %s' % (ACTIVE_SIM, timer - MOD.secCounter(), ccid)
+
         print 'Active SIM: %d Timer: %d' % (ACTIVE_SIM, timer - MOD.secCounter())
         
         creg = checkCREG()
@@ -198,8 +163,7 @@ try:
                 print "CSQ <= 10, wait to reconnect"
         else:
             print "NOT REGISTERED"
-            
-#         if((MOD.secCounter() > timer) or (SIM_NOTFOUND == 1)):
+
         if(MOD.secCounter() > timer):
             print 'NETWORK_WAIT_TIME timeout'
             if(ACTIVE_SIM == 1):
@@ -221,5 +185,5 @@ try:
             
         MOD.sleep(MAIN_LOOP_PERIOD * 10)
 except Exception, e:
-    print 'Exception'
+    print 'Unknown Exception, reboot'
     reboot()
